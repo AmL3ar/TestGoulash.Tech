@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <meta content="Навигатор поставщиков — поиск и сравнение поставщиков для пищевого бизнеса" name="description"/>
+  <title>
+   Навигатор поставщиков
+  </title>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+  <link href="/static/styles.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <header>
+   <div class="container topbar">
+    <div class="logo">
+     <span>
+      П
+     </span>
+     <b>
+      Навигатор поставщиков
+     </b>
+    </div>
+    <div class="badge">
+     AI + правила
+    </div>
+   </div>
+  </header>
+  <main class="container">
+   <section class="hero">
+    <p class="kicker">
+     Поиск и анализ B2B-поставщиков
+    </p>
+    <h1>
+     Найти поставщика —
+     <br/>
+     <span>
+      не значит открыть 30 вкладок.
+     </span>
+    </h1>
+    <p>
+     Сервис собирает коммерческие данные, сравнивает варианты и помогает понять, с кем связаться первым.
+    </p>
+   </section>
+   <section class="search-panel">
+    <form id="searchForm">
+     <label>
+      Что ищем?
+      <input id="category" placeholder="Овощи, упаковка, молочная продукция" required="" value="овощи"/>
+     </label>
+     <label>
+      Город или регион
+      <input id="geography" placeholder="Екатеринбург или Свердловская область" value="Екатеринбург"/>
+     </label>
+     <div class="checks">
+      <label>
+       <input checked="" id="delivery" type="checkbox"/>
+       Нужна доставка
+      </label>
+      <label>
+       <input id="certs" type="checkbox"/>
+       Важны сертификаты
+      </label>
+      <label>
+       <input id="liveSearch" type="checkbox"/>
+       Искать новые сайты в интернете
+      </label>
+     </div>
+     <button type="submit">
+      Найти поставщиков
+      <span>
+       →
+      </span>
+     </button>
+    </form>
+   </section>
+   <section class="results-head">
+    <div>
+     <p class="kicker">
+      ПРИОРИТЕТНЫЙ СПИСОК
+     </p>
+     <h2>
+      Кандидаты для контакта
+     </h2>
+    </div>
+    <div>
+     <p id="summary">
+      Запустите поиск, чтобы собрать список поставщиков.
+     </p>
+     <p class="mode-info" id="modeInfo">
+     </p>
+    </div>
+   </section>
+   <div class="toolbar">
+    <button class="secondary" id="favoritesButton" type="button">
+     Избранное (0)
+    </button>
+    <span>
+    </span>
+    <button class="secondary" id="exportCsv" type="button">
+     Экспорт CSV
+    </button>
+    <button class="secondary" id="exportXlsx" type="button">
+     Экспорт XLSX
+    </button>
+   </div>
+   <div class="loading hidden" id="loading">
+    <span>
+    </span>
+    Собираем и сопоставляем данные…
+   </div>
+   <div class="results" id="results">
+   </div>
+   <section class="how">
+    <div>
+     <p class="kicker">
+      КАК ЭТО РАБОТАЕТ
+     </p>
+     <h2>
+      От запроса до решения
+     </h2>
+    </div>
+    <div class="steps">
+     <article>
+      <b>
+       01
+      </b>
+      <h3>
+       Поиск
+      </h3>
+      <p>
+       Каталог и, при необходимости, новые сайты по категории и географии.
+      </p>
+     </article>
+     <article>
+      <b>
+       02
+      </b>
+      <h3>
+       Извлечение
+      </h3>
+      <p>
+       LLM превращает неструктурированный текст страниц в строгую карточку поставщика.
+      </p>
+     </article>
+     <article>
+      <b>
+       03
+      </b>
+      <h3>
+       Проверка
+      </h3>
+      <p>
+       Неизвестные данные не додумываются; сохраняются источник и дата проверки.
+      </p>
+     </article>
+     <article>
+      <b>
+       04
+      </b>
+      <h3>
+       Ранжирование
+      </h3>
+      <p>
+       Обычный код рассчитывает объяснимую оценку по требованиям закупки.
+      </p>
+     </article>
+    </div>
+   </section>
+  </main>
+  <div class="compare-bar hidden" id="compareBar">
+   <span>
+    Выбрано для сравнения:
+    <b id="compareCount">
+     0
+    </b>
+   </span>
+   <button class="secondary" id="clearCompare" type="button">
+    Очистить
+   </button>
+   <button id="openCompare" type="button">
+    Сравнить
+   </button>
+  </div>
+  <dialog id="noteDialog">
+   <form class="dialog-body" id="noteForm">
+    <div class="dialog-head">
+     <div>
+      <p class="kicker">
+       ЗАМЕТКА
+      </p>
+      <h3 id="noteSupplierName">
+      </h3>
+     </div>
+     <button class="icon-button" data-close-dialog="" type="button">
+      ×
+     </button>
+    </div>
+    <textarea id="noteText" maxlength="2000" placeholder="Например: позвонить в понедельник, запросить прайс и сертификаты"></textarea>
+    <div class="dialog-actions">
+     <button class="secondary" data-close-dialog="" type="button">
+      Отмена
+     </button>
+     <button type="submit">
+      Сохранить
+     </button>
+    </div>
+   </form>
+  </dialog>
+  <dialog class="wide-dialog" id="compareDialog">
+   <div class="dialog-body">
+    <div class="dialog-head">
+     <div>
+      <p class="kicker">
+       СРАВНЕНИЕ
+      </p>
+      <h3>
+       Поставщики рядом
+      </h3>
+     </div>
+     <button class="icon-button" data-close-dialog="" type="button">
+      ×
+     </button>
+    </div>
+    <div id="compareContent">
+    </div>
+    <div class="dialog-actions">
+     <button class="secondary" id="exportCompareCsv" type="button">
+      Экспорт CSV
+     </button>
+     <button class="secondary" id="exportCompareXlsx" type="button">
+      Экспорт XLSX
+     </button>
+     <button data-close-dialog="" type="button">
+      Закрыть
+     </button>
+    </div>
+   </div>
+  </dialog>
+  <footer class="container">
+   Прототип · FastAPI / SQL / LLM / CSV / XLSX ·
+   <a href="/docs">
+    OpenAPI
+   </a>
+  </footer>
+  <script src="/static/app.js">
+  </script>
+ </body>
+</html>
+

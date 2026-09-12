@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://supplier:supplier@db:5432/supplier
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4.1-mini}
+    depends_on: [db]
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: supplier
+      POSTGRES_USER: supplier
+      POSTGRES_PASSWORD: supplier
+    volumes: ["supplier_ai_data:/var/lib/postgresql/data"]
+volumes:
+  supplier_ai_data:
