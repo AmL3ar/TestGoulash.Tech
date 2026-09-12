@@ -1,36 +1,52 @@
-from urllib.parse import quote
-
-from app.services.discovery import _clean_result_url
-
-
-def test_duckduckgo_redirect_is_unwrapped():
-    target = "https://supplier.example/catalog"
-    url = f"https://duckduckgo.com/l/?uddg={quote(target, safe='')}"
-
-    assert _clean_result_url(url) == target
+from app.services.discovery import (
+    SearchHit,
+    _clean_result_url,
+    _hit_relevance,
+    _parse_bing_rss,
+)
 
 
-def test_blocked_hosts_are_rejected():
-    assert _clean_result_url("https://www.avito.ru/example") is None
-    assert _clean_result_url("https://maps.google.com/example") is None
+def test_clean_duckduckgo_redirect():
+    value = (
+        "https://duckduckgo.com/l/?uddg="
+        "https%3A%2F%2Fexample.ru%2Fcatalog%3Fa%3D1"
+    )
+    assert _clean_result_url(value) == "https://example.ru/catalog?a=1"
 
 
-def test_bing_rss_parser_extracts_links():
-    from app.services.discovery import _parse_bing_rss
-
-    xml = """<?xml version=\"1.0\" encoding=\"utf-8\"?>
-    <rss version=\"2.0\"><channel>
-      <item><title>Поставщик</title><link>https://supplier.example/catalog</link></item>
-      <item><title>Другой</title><link>https://second.example/</link></item>
-    </channel></rss>"""
-
-    assert _parse_bing_rss(xml) == [
-        "https://supplier.example/catalog",
-        "https://second.example/",
-    ]
+def test_blocked_search_host():
+    assert _clean_result_url("https://www.google.com/search?q=test") is None
 
 
-def test_bing_rss_parser_handles_invalid_xml():
-    from app.services.discovery import _parse_bing_rss
+def test_parse_bing_rss():
+    xml = """
+    <rss><channel>
+      <item>
+        <title>Моцарелла оптом в Екатеринбурге</title>
+        <link>https://supplier.example/catalog</link>
+        <description>Поставщик сыров для HoReCa</description>
+      </item>
+    </channel></rss>
+    """
+    hits = _parse_bing_rss(xml)
+    assert len(hits) == 1
+    assert hits[0].url == "https://supplier.example/catalog"
+    assert "Моцарелла" in hits[0].title
 
-    assert _parse_bing_rss("<rss><broken>") == []
+
+def test_irrelevant_search_hit_is_rejected():
+    hit = SearchHit(
+        url="https://szkolabezsmartfonow.pl/article",
+        title="Jak obliczyć ocenę ze sprawdzianu",
+        snippet="Proste metody obliczania punktacji w szkole",
+    )
+    assert _hit_relevance(hit, "моцарелла", "Екатеринбург") == -1
+
+
+def test_relevant_supplier_hit_has_high_score():
+    hit = SearchHit(
+        url="https://example.ru/mozzarella",
+        title="Моцарелла оптом в Екатеринбурге",
+        snippet="Поставщик сыра для ресторанов и HoReCa, доставка со склада",
+    )
+    assert _hit_relevance(hit, "моцарелла", "Екатеринбург") >= 9

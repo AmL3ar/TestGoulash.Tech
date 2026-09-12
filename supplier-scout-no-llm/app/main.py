@@ -26,8 +26,8 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title=settings.app_name,
-    version="2.4.0",
-    description="Версия сервиса без LLM: публичный веб-поиск, BeautifulSoup и правила",
+    version="2.5.0",
+    description="Версия сервиса без LLM: веб-поиск с фильтрацией релевантности, BeautifulSoup и правила",
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")

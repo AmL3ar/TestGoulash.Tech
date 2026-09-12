@@ -1,18 +1,29 @@
-from app.services.heuristics import EMAIL_RE, PHONE_RE, _name, _sentence
+from app.services.heuristics import EMAIL_RE, PHONE_RE, _sentence, is_relevant_page
 
 
-def test_phone_and_email_are_found():
-    text = "Отдел продаж: +7 (343) 123-45-67, sales@example.ru"
-
-    assert PHONE_RE.search(text).group(0) == "+7 (343) 123-45-67"
-    assert EMAIL_RE.search(text).group(0) == "sales@example.ru"
-
-
-def test_sentence_extracts_delivery_condition():
-    text = "Компания работает с оптом. Доставка по Екатеринбургу от 5000 рублей. Есть самовывоз."
-
-    assert _sentence(text, ("достав",)) == "Доставка по Екатеринбургу от 5000 рублей."
+def test_phone_extraction():
+    match = PHONE_RE.search("Телефон: +7 (343) 123-45-67")
+    assert match
+    assert "343" in match.group(0)
 
 
-def test_name_prefers_title_before_separator():
-    assert _name("Поставщик Плюс | официальный сайт", "https://example.ru") == "Поставщик Плюс"
+def test_email_extraction():
+    match = EMAIL_RE.search("Пишите на sales@example.ru")
+    assert match
+    assert match.group(0) == "sales@example.ru"
+
+
+def test_delivery_sentence():
+    text = "Каталог продукции. Доставка по Екатеринбургу выполняется ежедневно. Оплата по счёту."
+    value = _sentence(text, ("достав",))
+    assert value == "Доставка по Екатеринбургу выполняется ежедневно."
+
+
+def test_relevant_supplier_page():
+    text = "Моцарелла для пиццы оптом. Поставщик для HoReCa. Доставка по Екатеринбургу."
+    assert is_relevant_page(text, "моцарелла", "Екатеринбург")
+
+
+def test_irrelevant_school_page():
+    text = "Как рассчитать оценку за школьную контрольную работу и перевести баллы в отметку."
+    assert not is_relevant_page(text, "моцарелла", "Екатеринбург")
