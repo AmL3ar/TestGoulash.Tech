@@ -1,4 +1,5 @@
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
+from xml.etree import ElementTree
 
 import httpx
 from bs4 import BeautifulSoup
@@ -47,13 +48,18 @@ def _clean_result_url(value: str) -> str | None:
     return value
 
 
-def _parse_duckduckgo(html: str) -> list[str]:
-    soup = BeautifulSoup(html, "html.parser")
-    return [
-        link.get("href", "")
-        for link in soup.select("a.result__a")
-        if link.get("href")
-    ]
+def _parse_bing_rss(xml: str) -> list[str]:
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return []
+
+    links: list[str] = []
+    for item in root.findall(".//item"):
+        link = item.findtext("link")
+        if link:
+            links.append(link.strip())
+    return links
 
 
 def _parse_bing(html: str) -> list[str]:
@@ -65,34 +71,50 @@ def _parse_bing(html: str) -> list[str]:
     ]
 
 
+def _parse_duckduckgo(html: str) -> list[str]:
+    soup = BeautifulSoup(html, "html.parser")
+    return [
+        link.get("href", "")
+        for link in soup.select("a.result__a")
+        if link.get("href")
+    ]
+
+
 async def discover_supplier_urls(
     category: str,
     geography: str | None,
     limit: int = 5,
 ) -> list[str]:
     query = f"{category} поставщик оптом {geography or ''} официальный сайт".strip()
+    encoded = quote_plus(query)
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-        )
+        ),
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.7",
     }
     providers = (
         (
-            f"https://html.duckduckgo.com/html/?q={quote_plus(query)}",
-            _parse_duckduckgo,
+            f"https://www.bing.com/search?q={encoded}&format=rss&setlang=ru",
+            _parse_bing_rss,
         ),
         (
-            f"https://www.bing.com/search?q={quote_plus(query)}&count=10",
+            f"https://www.bing.com/search?q={encoded}&count=10&setlang=ru",
             _parse_bing,
+        ),
+        (
+            f"https://html.duckduckgo.com/html/?q={encoded}",
+            _parse_duckduckgo,
         ),
     )
 
     errors: list[str] = []
     found: list[str] = []
+    providers_reached = 0
 
     async with httpx.AsyncClient(
-        timeout=httpx.Timeout(15.0, connect=8.0),
+        timeout=httpx.Timeout(18.0, connect=6.0),
         follow_redirects=True,
         headers=headers,
     ) as client:
@@ -104,6 +126,7 @@ async def discover_supplier_urls(
                 errors.append(f"{urlparse(url).netloc}: {type(exc).__name__}: {exc!r}")
                 continue
 
+            providers_reached += 1
             for raw_url in parser(response.text):
                 cleaned = _clean_result_url(raw_url)
                 if cleaned and cleaned not in found:
@@ -111,7 +134,7 @@ async def discover_supplier_urls(
                 if len(found) >= limit:
                     return found
 
-    if found:
+    if found or providers_reached:
         return found
 
     if errors:
