@@ -1,8 +1,13 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class SearchRequest(BaseModel):
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class SearchRequest(StrictModel):
     category: str = Field(min_length=2, max_length=140)
     geography: str | None = Field(default=None, max_length=160)
     need_delivery: bool = False
@@ -30,7 +35,7 @@ class SupplierOut(BaseModel):
     verified_contact: bool
     score: float = 0.0
     score_reasons: list[str] = Field(default_factory=list)
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SearchResponse(BaseModel):
@@ -41,9 +46,9 @@ class SearchResponse(BaseModel):
     discovered: int = 0
 
 
-class NoteUpdate(BaseModel):
+class NoteUpdate(StrictModel):
     notes: str = Field(max_length=2000)
 
 
-class ExportRequest(BaseModel):
+class ExportRequest(StrictModel):
     supplier_ids: list[int] = Field(min_length=1, max_length=50)

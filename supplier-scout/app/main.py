@@ -2,6 +2,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,10 +16,8 @@ from .models import Supplier
 from .schemas import ExportRequest, NoteUpdate, SearchRequest, SearchResponse, SupplierOut
 from .seed import seed_if_empty
 from .services.catalog import save_extracted
-from .services.discovery import discover_supplier_urls
-from .services.enrichment import extract_with_llm
+from .services.discovery import discover_suppliers_with_openai
 from .services.exporter import make_csv, make_xlsx
-from .services.heuristics import extract_with_rules
 from .services.ranking import rank_supplier
 
 
@@ -27,7 +26,7 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title=settings.app_name,
-    version="2.1.0",
+    version="2.2.0",
     description="Сервис для поиска, сравнения и приоритизации поставщиков",
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
@@ -54,46 +53,59 @@ def health():
     }
 
 
-async def _live_enrichment(payload: SearchRequest, db: Session) -> tuple[int, str]:
+def _log_openai_error(exc: Exception) -> None:
+    if isinstance(exc, httpx.HTTPStatusError):
+        body = exc.response.text[:1000]
+        logger.warning(
+            "OpenAI Web Search недоступен: %s: %r; status=%s; body=%s",
+            type(exc).__name__,
+            exc,
+            exc.response.status_code,
+            body,
+        )
+        return
+
+    logger.warning(
+        "OpenAI Web Search недоступен: %s: %r",
+        type(exc).__name__,
+        exc,
+    )
+
+
+async def _live_enrichment(
+    payload: SearchRequest,
+    db: Session,
+) -> tuple[list[int], str]:
+    if not settings.llm_api_key:
+        return [], "локальный каталог: LLM_API_KEY не настроен"
+
     try:
-        urls = await discover_supplier_urls(
+        items = await discover_suppliers_with_openai(
             payload.category,
             payload.geography,
             settings.live_search_limit,
         )
     except Exception as exc:
-        logger.warning("Веб-поиск недоступен: %s", exc)
-        return 0, "веб-поиск недоступен, использован локальный каталог"
+        _log_openai_error(exc)
+        return [], "веб-поиск временно недоступен; показаны только локальные совпадения"
 
-    added = 0
-    used_ai = bool(settings.llm_api_key)
-
-    for url in urls:
+    supplier_ids: list[int] = []
+    for item in items:
         try:
-            if used_ai:
-                item = await extract_with_llm(
-                    url,
-                    payload.category,
-                    payload.geography,
-                )
-            else:
-                item = await extract_with_rules(
-                    url,
-                    payload.category,
-                    payload.geography,
-                )
-            save_extracted(db, item)
-            added += 1
+            supplier = save_extracted(db, item)
+            supplier_ids.append(supplier.id)
         except Exception as exc:
-            logger.warning("Не удалось обработать источник %s: %s", url, exc)
+            logger.warning(
+                "Не удалось сохранить найденного поставщика %s: %s: %r",
+                item.source_url,
+                type(exc).__name__,
+                exc,
+            )
 
-    if used_ai:
-        return added, "веб-поиск + извлечение фактов через LLM"
+    if supplier_ids:
+        return supplier_ids, "OpenAI Web Search + извлечение фактов через LLM"
 
-    return (
-        added,
-        "веб-поиск + резервное извлечение по правилам, потому что LLM_API_KEY не настроен",
-    )
+    return [], "веб-поиск выполнен, релевантные поставщики не найдены"
 
 
 @app.post("/api/search", response_model=SearchResponse)
@@ -101,11 +113,11 @@ async def search_suppliers(
     payload: SearchRequest,
     db: Session = Depends(get_db),
 ):
-    discovered = 0
+    discovered_ids: list[int] = []
     mode = "локальный каталог"
 
     if payload.live_search:
-        discovered, mode = await _live_enrichment(payload, db)
+        discovered_ids, mode = await _live_enrichment(payload, db)
 
     stmt = select(Supplier).where(
         or_(
@@ -113,11 +125,16 @@ async def search_suppliers(
             Supplier.name.ilike(f"%{payload.category}%"),
         )
     )
-    candidates = list(db.scalars(stmt).all())
+    local_candidates = list(db.scalars(stmt).all())
+    candidates_by_id = {supplier.id: supplier for supplier in local_candidates}
 
-    if not candidates:
-        candidates = list(db.scalars(select(Supplier)).all())
+    if discovered_ids:
+        discovered = list(
+            db.scalars(select(Supplier).where(Supplier.id.in_(discovered_ids))).all()
+        )
+        candidates_by_id.update({supplier.id: supplier for supplier in discovered})
 
+    candidates = list(candidates_by_id.values())
     ranked = sorted(
         (rank_supplier(supplier, payload) for supplier in candidates),
         key=lambda item: item.score,
@@ -135,11 +152,11 @@ async def search_suppliers(
         query=payload,
         suppliers=output,
         mode=mode,
-        discovered=discovered,
+        discovered=len(discovered_ids),
         explanation=(
             "Рейтинг рассчитывается обычным кодом: категория, география, контакты, "
             "цена, MOQ, доставка, документы и полнота карточки. LLM используется "
-            "только для извлечения фактов из неструктурированных страниц."
+            "для веб-поиска и извлечения фактов из найденных источников."
         ),
     )
 

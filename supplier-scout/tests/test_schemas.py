@@ -17,3 +17,8 @@ def test_search_limit_is_limited():
 def test_export_requires_at_least_one_supplier():
     with pytest.raises(ValidationError):
         ExportRequest(supplier_ids=[])
+
+
+def test_unknown_search_fields_are_rejected():
+    with pytest.raises(ValidationError):
+        SearchRequest(category="овощи", require_delivery=True)
