@@ -5,6 +5,7 @@ services:
     environment:
       PORT: 8000
       DATABASE_URL: postgresql+psycopg://supplier:supplier@db:5432/supplier
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
     depends_on: [db]
   db:
     image: postgres:16-alpine

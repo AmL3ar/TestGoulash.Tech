@@ -3,6 +3,7 @@ from app.services.discovery import (
     _clean_result_url,
     _hit_relevance,
     _parse_bing_rss,
+    _parse_serper,
 )
 
 
@@ -50,3 +51,28 @@ def test_relevant_supplier_hit_has_high_score():
         snippet="Поставщик сыра для ресторанов и HoReCa, доставка со склада",
     )
     assert _hit_relevance(hit, "моцарелла", "Екатеринбург") >= 9
+
+
+def test_parse_serper_results():
+    payload = {
+        "organic": [
+            {
+                "title": "Моцарелла оптом — поставщик для HoReCa",
+                "link": "https://supplier.example/mozzarella",
+                "snippet": "Доставка по Екатеринбургу, оптовые поставки сыров",
+            }
+        ]
+    }
+    hits = _parse_serper(payload)
+    assert len(hits) == 1
+    assert hits[0].url == "https://supplier.example/mozzarella"
+    assert "Моцарелла" in hits[0].title
+
+
+def test_recipe_result_is_rejected():
+    hit = SearchHit(
+        url="https://example.ru/recept",
+        title="Как приготовить моцареллу дома",
+        snippet="Рецепт сыра моцарелла пошагово",
+    )
+    assert _hit_relevance(hit, "моцарелла", "Екатеринбург") == -1

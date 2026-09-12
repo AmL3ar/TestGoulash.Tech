@@ -26,8 +26,8 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title=settings.app_name,
-    version="2.5.0",
-    description="Версия сервиса без LLM: веб-поиск с фильтрацией релевантности, BeautifulSoup и правила",
+    version="2.6.0",
+    description="Версия сервиса без LLM: Google Search API при наличии ключа, резервный веб-поиск, BeautifulSoup и правила",
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
@@ -50,7 +50,8 @@ def health():
         "status": "ok",
         "service": settings.app_name,
         "ai": False,
-        "mode": "rules",
+        "mode": "serper+rules" if settings.serper_api_key else "rules",
+        "search_api": bool(settings.serper_api_key),
     }
 
 
@@ -93,7 +94,7 @@ async def _live_enrichment(
     if supplier_ids:
         return (
             supplier_ids,
-            "веб-поиск + извлечение через BeautifulSoup, регулярные выражения и правила",
+            "Google Search API / резервный веб-поиск + извлечение через BeautifulSoup, регулярные выражения и правила",
         )
 
     return [], "веб-поиск выполнен, релевантные поставщики не найдены"
@@ -145,9 +146,7 @@ async def search_suppliers(
         mode=mode,
         discovered=len(discovered_ids),
         explanation=(
-            "В этой версии LLM не используется. Новые сайты ищутся через HTML-выдачу "
-            "поисковиков, данные извлекаются BeautifulSoup, регулярными выражениями "
-            "и словарными правилами, а рейтинг рассчитывается обычным Python-кодом."
+            "В этой версии LLM не используется. При наличии SERPER_API_KEY кандидаты ищутся через Google Search API; без ключа используются резервные публичные источники. Данные извлекаются BeautifulSoup, регулярными выражениями и словарными правилами, а рейтинг рассчитывается обычным Python-кодом."
         ),
     )
 
